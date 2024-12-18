@@ -11,14 +11,15 @@ add_executable(ml_class
 		src/device/nodes/linearLayerBatched.cuh
 		src/device/mem/neuronArray.cuh
 		src/device/mem/neuronArrayBatched.cuh
-		src/device/nodes/activations/sigmoidLayerBatched.cuh
+		src/device/nodes/activations/sigmoid.cuh
 		src/device/networks/multiLayerPerceptron.cuh
 		src/device/nodes/abstract/node.cuh
 		src/device/nodes/denseLayerBatched.cuh
 		src/device/nodes/abstract/weightedNode.cuh
-		src/device/nodes/activations/activateLayerBatched.cuh
+		src/device/nodes/activateLayerBatched.cuh
 		src/device/nodes/abstract/nodeBatched.cuh
 		src/device/nodes/abstract/weightedNodeBatched.cuh
+		src/device/nodes/abstract/IONodeBatched.cuh
 )
 
 set_target_properties(ml_class PROPERTIES

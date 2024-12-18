@@ -21,6 +21,13 @@ public:
 	explicit array(const size_t N) : N(N) {
 		cudaTry(cudaMalloc(&mem, sizeof(T) * N));
 	}
+	device::array <T> &operator=(device::array <T> &&other) noexcept {
+		assert(N == other.N);
+		~array();
+		mem = other.mem;
+		other.mem = nullptr;
+		return *this;
+	}
 
 	~array() {
 		cudaTry(cudaFree(mem));

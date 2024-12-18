@@ -21,6 +21,14 @@ public:
 	matrix(const size_t X, const size_t Y) : X(X), Y(Y), pitch(0) {
 		cudaTry(cudaMallocPitch(&mem, &pitch, X * sizeof(T), Y));
 	}
+	device::matrix <T> &operator= (device::matrix <T> &&other) noexcept {
+		assert(X == other.X && Y == other.Y);
+		~matrix();
+		mem = other.mem;
+		other.mem = nullptr;
+		pitch = other.pitch;
+		return *this;
+	}
 
 	~matrix() {
 		cudaTry(cudaFree(mem));

@@ -1,27 +1,42 @@
 #pragma once
 
+#include "activateLayerBatched.cuh"
 #include "linearLayerBatched.cuh"
-#include "activations/sigmoidLayerBatched.cuh"
+#include "abstract/weightedNodeBatched.cuh"
 
 namespace device {
-	template <typename activation>
 	class denseLayerBatched;
 };
 
-template <typename activation>
-class device::denseLayerBatched : public device::weightedNode {
+class device::denseLayerBatched : public device::IONodeBatched <device::neuronArrayBatched> {
 	device::linearLayerBatched mul;
-	activation act;
+	device::activateLayerBatched act;
+	cudaGraphNode_t mul_node = nullptr, act_node = nullptr;
 
 public:
 	const size_t &in_size, out_size, batch_size;
 
-	inline void makeForwardGraph();
-	inline void makeBackwardGraph();
+	void makeForwardGraph() override;
+	void makeBackwardGraph() override;
 
 public:
-	denseLayerBatched(device::neuronArrayBatched &input, device::neuronArrayBatched &output) :
-	mul(input, output), act(output), in_size(mul.in_size), out_size(mul.out_size), batch_size(mul.batch_size) { }
+	denseLayerBatched(device::neuronArrayBatched &input, device::neuronArrayBatched &output, const device::activationFunction act) :
+	mul(input, output), act(output, act), in_size(mul.in_size), out_size(mul.out_size), batch_size(mul.batch_size) { }
+
+	bool editInput(device::neuronArrayBatched &input) {
+		if (mul.editInput(input)) {
+			invalidateGraphs();
+			return true;
+		}
+		return false;
+	}
+	bool editOutput(device::neuronArrayBatched &output) {
+		if (mul.editOutput(output) || act.editData(output)) {
+			invalidateGraphs();
+			return true;
+		}
+		return false;
+	}
 
 	void resetWeights(const float mean, const float std_dev, const unsigned long long seed = 0) {
 		mul.resetWeights(mean, std_dev, seed);
@@ -39,22 +54,16 @@ public:
 	}
 };
 
-template <typename activation>
-void device::denseLayerBatched <activation>::makeForwardGraph () {
+void device::denseLayerBatched::makeForwardGraph () {
 	cudaGraphCreate(&fwd, 0);
 
-	cudaGraphNode_t mul_node, act_node;
 	cudaGraphAddChildGraphNode(&mul_node, fwd, nullptr, 0, mul.getForwardGraph());
-	cudaGraphAddChildGraphNode(&act_node, fwd, *mul_node, 1, act.getForwardGraph());
+	cudaGraphAddChildGraphNode(&act_node, fwd, &mul_node, 1, act.getForwardGraph());
 }
 
-template <typename activation>
-void device::denseLayerBatched <activation>::makeBackwardGraph () {
+void device::denseLayerBatched::makeBackwardGraph () {
 	cudaGraphCreate(&back, 0);
 
-	cudaGraphNode_t mul_node, act_node;
 	cudaGraphAddChildGraphNode(&mul_node, back, nullptr, 0, mul.getBackwardGraph());
-	cudaGraphAddChildGraphNode(&act_node, fwd, *mul_node, 1, act.getBackwardGraph());
-
-	cudaGraphNodeParams
+	cudaGraphAddChildGraphNode(&act_node, fwd, &mul_node, 1, act.getBackwardGraph());
 }

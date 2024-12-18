@@ -15,7 +15,7 @@
 #define calcBlocks(n, block_size) ((n + block_size - 1) / block_size)
 
 // Will probably be unused, just an exercise to make a better kernel
-template <typename T, size_t repeats>
+template <typename T, size_t repeats> // preferably power of 2
 __global__ void devFillArray_WTF(T* array, const size_t n, const T value) {
 	const size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 	size_t start = idx * repeats;
@@ -63,3 +63,19 @@ inline void cudaFillMatrix(T* mat, const size_t pitch, const size_t n, const siz
 	devFillMatrix<<<block_size, grid_size, 0, stream>>>(mat, pitch, n, m, value);
 }
 
+inline void cudaGraphExecForceUpdate(cudaGraphExec_t *exec_graph, const cudaGraph_t new_graph) {
+	assert(exec_graph != nullptr);
+	assert(new_graph != nullptr);
+	if (*exec_graph != nullptr) {
+		cudaGraphExecUpdateResult updateResult;
+		cudaGraphNode_t errorNode;
+		cudaTry(cudaGraphExecUpdate(*exec_graph, new_graph, &errorNode, &updateResult));
+		if (updateResult != cudaGraphExecUpdateSuccess) {
+			cudaTry(cudaGraphExecDestroy(*exec_graph));
+			*exec_graph = nullptr;
+		}
+	}
+	if (*exec_graph == nullptr) {
+		cudaTry(cudaGraphInstantiate(exec_graph, new_graph, nullptr, nullptr, 0));
+	}
+}

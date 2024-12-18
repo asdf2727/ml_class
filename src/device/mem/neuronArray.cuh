@@ -17,4 +17,11 @@ struct device::neuronArray {
 		static constexpr float just_a_1 = 1;
 		cudaTry(cudaMemcpy(val + size, &just_a_1, 1, cudaMemcpyHostToDevice));
 	}
+
+	neuronArray &operator= (neuronArray &&other) noexcept {
+		assert(size == other.size);
+		val = std::move(other.val);
+		der = std::move(other.der);
+		return *this;
+	}
 };

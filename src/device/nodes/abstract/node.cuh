@@ -5,32 +5,41 @@ namespace device {
 };
 
 /* Implement:
- * void makeForwardNode();
- * void makeBackwardNode();
+ * void makeForwardGraph();
+ * void makeBackwardGraph();
  */
 
 class device::node {
 protected:
 	cudaGraph_t fwd = nullptr, back = nullptr;
-	void makeForwardNode();
-	void makeBackwardNode();
+	virtual void makeForwardGraph();
+	virtual void makeBackwardGraph();
+	void invalidateGraphs() {
+		if (fwd != nullptr) {
+			cudaGraphDestroy(fwd);
+			fwd = nullptr;
+		}
+		if (back != nullptr) {
+			cudaGraphDestroy(back);
+			back = nullptr;
+		}
+	}
 
 public:
-	~node() {
-		if (fwd != nullptr) cudaGraphDestroy(fwd);
-		if (back != nullptr) cudaGraphDestroy(back);
+	virtual ~node() {
+		invalidateGraphs();
 	}
 
 	cudaGraph_t getForwardGraph() {
-		if (fwd == nullptr) makeForwardNode();
+		if (fwd == nullptr) makeForwardGraph();
 		return fwd;
 	}
 	cudaGraph_t getBackwardGraph() {
-		if (back == nullptr) makeBackwardNode();
+		if (back == nullptr) makeBackwardGraph();
 		return back;
 	}
 
-	void descend(const float step_size, const cudaStream_t stream) { }
+	virtual void descend(const float step_size, const cudaStream_t stream) { }
 	cudaStream_t descend(const float step_size) {
 		cudaStream_t stream;
 		cudaStreamCreate(&stream);

@@ -4,14 +4,15 @@
 #include "../device.cuh"
 #include "../mem/matrix.cuh"
 #include "../mem/neuronArrayBatched.cuh"
+#include "abstract/IONodeBatched.cuh"
 
 namespace device {
 	class linearLayerBatched;
 };
 
-class device::linearLayerBatched : public device::weightedNode {
-	device::neuronArrayBatched &input;
-	device::neuronArrayBatched &output;
+class device::linearLayerBatched : public device::IONodeBatched <device::neuronArrayBatched> {
+	device::neuronArrayBatched *input;
+	device::neuronArrayBatched *output;
 
 public:
 	const size_t in_size, out_size, batch_size;
@@ -24,7 +25,7 @@ private:
 	device::matrix <float> *mul_der = nullptr;
 	device::matrix <float> *mul_der_sum = nullptr;
 
-	void initDer() {
+	void initMulDer() {
 		if (mul_der == nullptr) mul_der = new device::matrix <float>(in_size + 1, out_size);
 		if (mul_der_sum == nullptr) {
 			mul_der_sum = new device::matrix <float>(in_size + 1, out_size);
@@ -32,20 +33,40 @@ private:
 		}
 	}
 
-	inline void makeForwardGraph();
-	inline void makeBackwardGraph();
+	inline void makeForwardGraph() override;
+	inline void makeBackwardGraph() override;
 
 public:
 	linearLayerBatched (device::neuronArrayBatched &input, device::neuronArrayBatched &output) :
-	input(input), output(output), in_size(input.size), out_size(output.size), batch_size(input.batch_size), mul(in_size, out_size) {
+	input(&input), output(&output), in_size(input.size), out_size(output.size), batch_size(input.batch_size), mul(in_size, out_size) {
 		assert(input.batch_size == output.batch_size);
 		cublasCreate(&handle);
 	}
 
 	~linearLayerBatched() {
 		cublasDestroy(handle);
+		delete input;
+		delete output;
+		delete mul;
 		delete mul_der;
 		delete mul_der_sum;
+	}
+
+	bool editInput(device::neuronArrayBatched &input) {
+		if (this->input != &input) {
+			this->input = &input;
+			invalidateGraphs();
+			return true;
+		}
+		return false;
+	}
+	bool editOutput(device::neuronArrayBatched &output) {
+		if (this->output != &output) {
+			this->output = &output;
+			invalidateGraphs();
+			return true;
+		}
+		return false;
 	}
 
 	void resetWeights(const float mean, const float std_dev, const unsigned long long seed = 0) {
@@ -72,7 +93,7 @@ public:
 };
 
 inline void device::linearLayerBatched::descend(const float step_size, const cudaStream_t stream) {
-	initDer();
+	initMulDer();
 	cublasSetStream(handle, stream);
 	// mult[(in+1)*out] = mult[(in+1)*out] + step_size * mult_der_sum[(in+1)*out]
 	cublasSgeam(handle, CUBLAS_OP_N, CUBLAS_OP_N, in_size + 1, out_size,
@@ -101,7 +122,7 @@ inline void device::linearLayerBatched::makeForwardGraph() {
 }
 
 inline void device::linearLayerBatched::makeBackwardGraph() {
-	initDer();
+	initMulDer();
 	cudaStream_t stream1, stream2;
 	cudaStreamCreate(&stream1);
 	cudaStreamCreate(&stream2);

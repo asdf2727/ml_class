@@ -9,20 +9,20 @@ namespace device {
 };
 
 /* Implement:
- * void makeForwardNode();
- * void makeBackwardNode();
+ * void makeForwardGraph();
+ * void makeForwardGraph();
  * void resetWeights(const float mean, const float std_dev, const unsigned long long seed = 0);
  * void loadWeights(const std::vector <float> &weights);
  * std::vector <float> saveWeights() const;
  * void descend(const float step_size, const cudaStream_t stream)
  */
 
-class device::weightedNode : public device::node {
+class device::weightedNode : public virtual device::node {
 public:
-	void resetWeights(const float mean, const float std_dev, const unsigned long long seed = 0);
+	virtual void resetWeights(const float mean, const float std_dev, const unsigned long long seed = 0);
 
-	void loadWeights(const std::vector <float> &weights);
-	std::vector <float> saveWeights() const;
+	virtual void loadWeights(const std::vector <float> &weights);
+	virtual std::vector <float> saveWeights() const;
 
 	void readWeights(std::istream &in) {
 		size_t size;
@@ -38,5 +38,5 @@ public:
 		out.write(reinterpret_cast<const char *>(weights.data()), weights.size() * sizeof(float));
 	}
 
-	void descend(const float step_size, const cudaStream_t stream);
+	virtual void descend(const float step_size, const cudaStream_t stream);
 };
