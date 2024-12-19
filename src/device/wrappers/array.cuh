@@ -3,8 +3,6 @@
 #include <array>
 #include <assert.h>
 
-#include "../device.cuh"
-
 namespace device {
 	template <typename T>
 	struct array;
@@ -29,6 +27,15 @@ public:
 		return *this;
 	}
 
+	void copy(const device::array <T> &arr, const cudaStream_t stream = cudaStreamLegacy) const {
+		assert(N == arr.N);
+		cudaTry(cudaMemcpyAsync(mem, arr.mem, sizeof(T) * N, cudaMemcpyDeviceToDevice, stream));
+	}
+	device::array <T> &operator= (const device::array <T> &rhs) const {
+		copy(rhs);
+		return *this;
+	}
+
 	~array() {
 		cudaTry(cudaFree(mem));
 	}
@@ -36,17 +43,12 @@ public:
 	void toHost(T *arr, const cudaStream_t stream = cudaStreamLegacy) const {
 		cudaTry(cudaMemcpyAsync(arr, mem, sizeof(T) * N, cudaMemcpyDeviceToHost, stream));
 	}
-	void fromHost(const T *arr, const cudaStream_t stream = cudaStreamLegacy) {
+	void fromHost(const T *arr, const cudaStream_t stream = cudaStreamLegacy) const {
 		cudaTry(cudaMemcpyAsync(mem, arr, sizeof(T) * N, cudaMemcpyHostToDevice, stream));
 	}
 
-	void copy(const device::array <T> &arr, const cudaStream_t stream = cudaStreamLegacy) {
-		assert(N == arr.N);
-		cudaTry(cudaMemcpyAsync(mem, arr.mem, sizeof(T) * N, cudaMemcpyDeviceToDevice, stream));
-	}
-
 	// ReSharper disable once CppMemberFunctionMayBeConst
-	void set(const uint8_t val, const cudaStream_t stream = cudaStreamLegacy) {
+	void set(const uint8_t val, const cudaStream_t stream = cudaStreamLegacy) const {
 		cudaTry(cudaMemsetAsync(mem, val, sizeof(T) * N, stream));
 	}
 
@@ -54,12 +56,8 @@ public:
 		return mem;
 	}
 
-	device::array <T> &operator= (const T *rhs) {
+	device::array <T> &operator= (const T *rhs) const {
 		fromHost(rhs);
-		return *this;
-	}
-	device::array <T> &operator= (const device::array <T> &rhs) {
-		copy(rhs);
 		return *this;
 	}
 };

@@ -1,17 +1,21 @@
 #pragma once
 
 #include <array>
-#include <array>
 #include <cmath>
+#include <cassert>
 #include <stdexcept>
 
 #include <cublas_v2.h>
 #include <curand.h>
 
-#include "mem/array.cuh"
-
-#define cudaTry(function) cudaError_t err = function; if (err != cudaSuccess) throw std::runtime_error(cudaGetErrorString(err))
-#define cublasTry(function) cublasStatus_t status = function; if (status != CUBLAS_STATUS_SUCCESS) throw std::runtime_error(cublasGetStatusString(status))
+#define cudaTry(function) \
+	cudaError_t err = function; \
+	if (err != cudaSuccess) \
+		throw std::runtime_error(cudaGetErrorString(err))
+#define cublasTry(function) \
+	cublasStatus_t status = function; \
+	if (status != CUBLAS_STATUS_SUCCESS) \
+		throw std::runtime_error(cublasGetStatusString(status))
 #define calcBlocks(n, block_size) ((n + block_size - 1) / block_size)
 
 // Will probably be unused, just an exercise to make a better kernel
@@ -49,21 +53,21 @@ __global__ void devFillMatrix(T* matrix, const size_t pitch, const size_t n, con
 }
 
 template <typename T>
-inline void cudaFillArray(T* array, const size_t n, const T value, cudaStream_t stream = cudaStreamDefault) {
+void cudaFillArray(T* array, const size_t n, const T value, cudaStream_t stream = cudaStreamDefault) {
 	constexpr size_t block_size = 256;
 	const size_t grid_size = calcBlocks(n, block_size);
 	devFillArray<<<grid_size, block_size, 0, stream>>>(array, n, value);
 }
 
 template <typename T>
-inline void cudaFillMatrix(T* mat, const size_t pitch, const size_t n, const size_t m, const T value, cudaStream_t stream = cudaStreamDefault) {
+void cudaFillMatrix(T* mat, const size_t pitch, const size_t n, const size_t m, const T value, cudaStream_t stream = cudaStreamDefault) {
 	constexpr dim3 block_size(16, 16);  // 16 x 16 threads per block (256 total)
 	const dim3 grid_size(calcBlocks(n, block_size.x),
 						calcBlocks(m, block_size.x));
 	devFillMatrix<<<block_size, grid_size, 0, stream>>>(mat, pitch, n, m, value);
 }
 
-inline void cudaGraphExecForceUpdate(cudaGraphExec_t *exec_graph, const cudaGraph_t new_graph) {
+void cudaGraphExecForceUpdate(cudaGraphExec_t *exec_graph, const cudaGraph_t new_graph) {
 	assert(exec_graph != nullptr);
 	assert(new_graph != nullptr);
 	if (*exec_graph != nullptr) {

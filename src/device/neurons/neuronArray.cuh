@@ -1,19 +1,23 @@
 #pragma once
 
+#include "../../lazy.cuh"
 #include "../device.cuh"
-#include "array.cuh"
+#include "../wrappers/array.cuh"
 
 namespace device {
 	struct neuronArray;
 };
 
 struct device::neuronArray {
-	const size_t size;
 	device::array <float> val;
-	device::array <float> der;
+
+	void buildDer(const device::array <float> *&der) const { der = new device::array <float>(val.N); };
+	lazy <device::array <float>, neuronArray> der;
+
+	const size_t &size;
 
 	explicit neuronArray(const size_t size) :
-	size(size), val(size + 1), der(size) {
+	val(size + 1), der(buildDer), size(val.N) {
 		static constexpr float just_a_1 = 1;
 		cudaTry(cudaMemcpy(val + size, &just_a_1, 1, cudaMemcpyHostToDevice));
 	}

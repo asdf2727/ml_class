@@ -1,7 +1,5 @@
 #pragma once
 
-#include <array>
-
 #include "../device.cuh"
 
 namespace device {
@@ -30,6 +28,15 @@ public:
 		return *this;
 	}
 
+	void copy(const device::matrix<T> &arr, const cudaStream_t stream = cudaStreamLegacy) const {
+		assert(X == arr.X && Y == arr.Y);
+		cudaTry(cudaMemcpy2DAsync(mem, pitch, arr.mem, arr.pitch, X * sizeof(T), Y, cudaMemcpyDeviceToDevice, stream));
+	}
+	device::matrix <T> &operator= (const device::matrix <T> &rhs) const {
+		copy(rhs);
+		return *this;
+	}
+
 	~matrix() {
 		cudaTry(cudaFree(mem));
 	}
@@ -40,33 +47,23 @@ public:
 	void toHost(T *arr, const cudaStream_t stream = cudaStreamLegacy) const {
 		cudaTry(cudaMemcpy2DAsync(arr, X * sizeof(T), mem, mem.pitch, X * sizeof(T), Y, cudaMemcpyDeviceToHost, stream));
 	}
-	void fromHost(const T *arr, const size_t arr_pitch, const cudaStream_t stream = cudaStreamLegacy) {
+	void fromHost(const T *arr, const size_t arr_pitch, const cudaStream_t stream = cudaStreamLegacy) const {
 		cudaTry(cudaMemcpy2DAsync(mem, pitch, arr, arr_pitch, X * sizeof(T), Y, cudaMemcpyHostToDevice, stream));
 	}
-	void fromHost(const T *arr, const cudaStream_t stream = cudaStreamLegacy) {
+	void fromHost(const T *arr, const cudaStream_t stream = cudaStreamLegacy) const {
 		cudaTry(cudaMemcpy2DAsync(mem, pitch, arr, X * sizeof(T), X * sizeof(T), Y, cudaMemcpyHostToDevice, stream));
 	}
 
-	void copy(const device::matrix<T> &arr, const cudaStream_t stream = cudaStreamLegacy) {
-		assert(X == arr.X && Y == arr.Y);
-		cudaTry(cudaMemcpy2DAsync(mem, pitch, arr.mem, arr.pitch, X * sizeof(T), Y, cudaMemcpyDeviceToDevice, stream));
-	}
-
 	// ReSharper disable once CppMemberFunctionMayBeConst
-	void set(const uint8_t val, const cudaStream_t stream = cudaStreamLegacy) {
+	void set(const uint8_t val, const cudaStream_t stream = cudaStreamLegacy) const {
 		cudaTry(cudaMemset2DAsync(mem, pitch, val, sizeof(T) * X, Y, stream));
 	}
 
 	operator T *() const {
 		return mem;
 	}
-
-	device::matrix  <T> &operator= (const T *rhs) {
+	device::matrix <T> &operator= (const T *rhs) const {
 		fromHost(rhs);
-		return *this;
-	}
-	device::matrix  <T> &operator= (const device::matrix <T> &rhs) {
-		copy(rhs);
 		return *this;
 	}
 };

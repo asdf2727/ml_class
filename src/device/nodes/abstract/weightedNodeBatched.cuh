@@ -10,6 +10,7 @@ namespace device {
 /* Implement:
  * void makeForwardGraph();
  * void makeForwardGraph();
+ * void makeDescentGraph();
  * void resetWeights(const float mean, const float std_dev, const unsigned long long seed = 0);
  * void loadWeights(const std::vector <float> &weights);
  * std::vector <float> saveWeights() const;

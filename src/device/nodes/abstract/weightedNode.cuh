@@ -11,6 +11,7 @@ namespace device {
 /* Implement:
  * void makeForwardGraph();
  * void makeForwardGraph();
+ * void makeDescentGraph();
  * void resetWeights(const float mean, const float std_dev, const unsigned long long seed = 0);
  * void loadWeights(const std::vector <float> &weights);
  * std::vector <float> saveWeights() const;
@@ -18,7 +19,13 @@ namespace device {
  */
 
 class device::weightedNode : public virtual device::node {
+protected:
+	virtual void buildDescent(const device::graph *&desc) const;
+	lazy <device::graph, device::weightedNode> desc;
+
 public:
+	weightedNode() : desc(buildDescent) { }
+
 	virtual void resetWeights(const float mean, const float std_dev, const unsigned long long seed = 0);
 
 	virtual void loadWeights(const std::vector <float> &weights);
@@ -38,5 +45,7 @@ public:
 		out.write(reinterpret_cast<const char *>(weights.data()), weights.size() * sizeof(float));
 	}
 
-	virtual void descend(const float step_size, const cudaStream_t stream);
+	virtual void changeStepSize(const float new_step_size);
+
+	const device::graph &getDescent() const { return desc; }
 };

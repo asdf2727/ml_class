@@ -1,5 +1,8 @@
 #pragma once
 
+#include "../../wrappers/graph.cuh"
+#include "../../../lazy.cuh"
+
 namespace device {
 	class node;
 };
@@ -11,39 +14,17 @@ namespace device {
 
 class device::node {
 protected:
-	cudaGraph_t fwd = nullptr, back = nullptr;
-	virtual void makeForwardGraph();
-	virtual void makeBackwardGraph();
-	void invalidateGraphs() {
-		if (fwd != nullptr) {
-			cudaGraphDestroy(fwd);
-			fwd = nullptr;
-		}
-		if (back != nullptr) {
-			cudaGraphDestroy(back);
-			back = nullptr;
-		}
-	}
+	virtual void buildForward(const device::graph *&fwd) const;
+	lazy <device::graph, device::node> fwd;
+
+	virtual void buildBackward(const device::graph *&back) const;
+	lazy <device::graph, device::node> back;
 
 public:
-	virtual ~node() {
-		invalidateGraphs();
-	}
+	node() : fwd(buildForward), back(buildBackward) { }
 
-	cudaGraph_t getForwardGraph() {
-		if (fwd == nullptr) makeForwardGraph();
-		return fwd;
-	}
-	cudaGraph_t getBackwardGraph() {
-		if (back == nullptr) makeBackwardGraph();
-		return back;
-	}
+	virtual ~node() = default;
 
-	virtual void descend(const float step_size, const cudaStream_t stream) { }
-	cudaStream_t descend(const float step_size) {
-		cudaStream_t stream;
-		cudaStreamCreate(&stream);
-		descend(step_size, stream);
-		return stream;
-	}
+	const device::graph &getForward() const { return fwd; }
+	const device::graph &getBackward() const { return back; }
 };
