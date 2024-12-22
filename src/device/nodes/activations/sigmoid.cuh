@@ -2,12 +2,9 @@
 
 #include "../activateLayerBatched.cuh"
 
-__device__ inline float sigmoidFunc(const float value) {
-	return 1 / (1 + expf(-value));
-}
-__device__ inline float sigmoidDer(const float sigmoid) {
-	return sigmoid * (1 - sigmoid);
-}
+__device__ float sigmoidFunc(const float value);
+__device__ float sigmoidDer(const float sigmoid);
+
 namespace device {
 	const activationFunction sigmoid(sigmoidFunc, sigmoidDer);
 }

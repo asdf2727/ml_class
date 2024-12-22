@@ -18,7 +18,7 @@ public:
 
 	lazy () : data(nullptr), build(nullptr) {}
 
-	lazy (const lazy &other) = delete;
+	lazy (const lazy &other) = delete;	// TODO add assignment operator and use instead of * operator
 	lazy &operator= (const lazy &other) = delete;
 	lazy (lazy &&other) noexcept :
 		valid(other.valid),
@@ -28,10 +28,12 @@ public:
 		other.data = nullptr;
 	}
 	lazy &operator= (lazy &&other) noexcept {
-		valid = other.valid;
+		if (this == &other) return *this;
+		delete data;
 		data = other.data;
-		other.valid = false;
+		valid = other.valid;
 		other.data = nullptr;
+		other.valid = false;
 		return *this;
 	}
 	~lazy () { delete data; }

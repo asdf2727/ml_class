@@ -8,12 +8,14 @@
 #include <cublas_v2.h>
 
 inline void cudaTry (const cudaError_t err) {
-	if (err != cudaSuccess)
+	if (err != cudaSuccess) {
 		throw std::runtime_error(cudaGetErrorString(err));
+	}
 }
 inline void cublasTry (const cublasStatus_t status) {
-	if (status != CUBLAS_STATUS_SUCCESS)
+	if (status != CUBLAS_STATUS_SUCCESS) {
 		throw std::runtime_error(cublasGetStatusString(status));
+	}
 }
 
 constexpr size_t calcBlocks (const size_t n, const size_t block_size) { return (n + block_size - 1) / block_size; }

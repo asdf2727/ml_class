@@ -20,26 +20,41 @@ public:
 		cudaTry(cudaMallocPitch(&mem, (size_t*)&pitch, X * sizeof(T), Y));
 	}
 
-	matrix() : X(0), Y(0), pitch(0), mem(nullptr) {}
+	matrix () :
+		X(0),
+		Y(0),
+		pitch(0),
+		mem(nullptr) {}
 
 	void copy (const device::matrix <T> &arr, const cudaStream_t stream = cudaStreamLegacy);
 
-	matrix (const device::matrix <T> &other) : matrix(other.X, other.Y) { copy(other); }
+	matrix (const device::matrix <T> &other) :
+		matrix(other.X, other.Y) { copy(other); }
 	device::matrix <T> &operator= (const device::matrix <T> &rhs) {
+		if (this == &rhs) return *this;
 		copy(rhs);
 		return *this;
 	}
-	matrix (device::matrix <T> &&other) noexcept : X(other.X), Y(other.Y), pitch(other.pitch),
-	                                               mem(other.mem) { other.mem = nullptr; }
+	matrix (device::matrix <T> &&other) noexcept :
+		X(other.X),
+		Y(other.Y),
+		pitch(other.pitch),
+		mem(other.mem) {
+		other.mem = nullptr;
+	}
 	device::matrix <T> &operator= (device::matrix <T> &&other) noexcept {
-		assert(X == other.X && Y == other.Y);
+		if (this == &other) return *this;
 		cudaTry(cudaFree(mem));
 		mem = other.mem;
-		*(size_t*)&pitch = other.pitch;
+		(size_t &)X = other.X;
+		(size_t &)Y = other.Y;
+		(size_t &)pitch = other.pitch;
 		other.mem = nullptr;
 		return *this;
 	}
-	~matrix () { cudaTry(cudaFree(mem)); }
+	~matrix () {
+		cudaTry(cudaFree(mem));
+	}
 
 	void toHost (T *arr, const size_t arr_pitch,
 	             const cudaStream_t stream = cudaStreamLegacy) const;
@@ -78,20 +93,20 @@ template <typename T>
 void device::matrix <T>::copy (const device::matrix <T> &arr, const cudaStream_t stream) {
 	assert(X == arr.X && Y == arr.Y);
 	cudaTry(cudaMemcpy2DAsync(mem, pitch, arr.mem, arr.pitch, X * sizeof(T), Y,
-	                          cudaMemcpyDeviceToDevice, stream));
+		cudaMemcpyDeviceToDevice, stream));
 }
 
 template <typename T>
 void device::matrix <T>::toHost (T *arr, const size_t arr_pitch, const cudaStream_t stream) const {
 	cudaTry(cudaMemcpy2DAsync(arr, arr_pitch, mem, pitch, X * sizeof(T), Y, cudaMemcpyDeviceToHost,
-	                          stream));
+		stream));
 }
 
 template <typename T>
 void device::matrix <T>::fromHost (const T *arr, const size_t arr_pitch,
                                    const cudaStream_t stream) const {
 	cudaTry(cudaMemcpy2DAsync(mem, pitch, arr, arr_pitch, X * sizeof(T), Y, cudaMemcpyHostToDevice,
-	                          stream));
+		stream));
 }
 
 template <typename T>
@@ -115,7 +130,8 @@ void device::matrix <T>::fill (const T val, const size_t begin_x, const size_t e
 	const size_t len_y = end_y - begin_y;
 	constexpr dim3 block_size(16, 16); // 16 x 16 threads per block (256 total)
 	const dim3 grid_size(calcBlocks(len_x, block_size.x),
-	                     calcBlocks(len_y, block_size.x));
-	devFillMatrix<<<block_size, grid_size, 0, stream>>>(mem + (begin_x * sizeof(T))+ begin_y * pitch,
-	                                                    pitch, len_x, len_y, val);
+		calcBlocks(len_y, block_size.x));
+	devFillMatrix<<<block_size, grid_size, 0, stream>>>(
+		mem + (begin_x * sizeof(T)) + begin_y * pitch,
+		pitch, len_x, len_y, val);
 }

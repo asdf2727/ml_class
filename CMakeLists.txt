@@ -34,10 +34,18 @@ add_executable(ml_class
 		src/device/nodes/calculateLossBatched.cu
 		src/device/nodes/activateLayerBatched.cu
 		src/binaryIO.cuh
-		src/device/nodes/activations/all.cuh
+		src/device/nodes/activations/common.cuh
 		src/device/nodes/activations/linear.cuh
-		src/device/nodes/losses/all.cuh
+		src/device/nodes/losses/common.cuh
 		src/device/nodes/losses/meanSquaredError.cuh
+		src/device/nodes/losses/common.cu
+		src/device/nodes/activations/common.cu
+		src/device/wrappers/graphExec.cu
+		src/device/nodes/activations/linear.cu
+		src/device/nodes/activations/rectifiedLinearUnit.cu
+		src/device/nodes/activations/sigmoid.cu
+		src/device/nodes/losses/binaryCrossEntropy.cu
+		src/device/nodes/losses/meanSquaredError.cu
 )
 
 set_target_properties(ml_class PROPERTIES

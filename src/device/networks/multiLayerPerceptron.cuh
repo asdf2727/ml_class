@@ -22,22 +22,18 @@ class device::multiLayerPerceptron {
 	void buildDescentGraph (device::graph *&desc);
 
 	lazy <device::graph> fwd = lazy <device::graph>
-			(std::bind(&multiLayerPerceptron::buildForwardGraph, this, std::placeholders::_1));
+			([this] (device::graph *&fwd) { buildForwardGraph(fwd); });
 	lazy <device::graph> back = lazy <device::graph>
-			(std::bind(&multiLayerPerceptron::buildBackwardGraph, this, std::placeholders::_1));
+			([this] (device::graph *&back) { buildForwardGraph(back); });
 	lazy <device::graph> desc = lazy <device::graph>
-			(std::bind(&multiLayerPerceptron::buildDescentGraph, this, std::placeholders::_1));
-
-	void buildForwardGraphExec (device::graphExec *&fwd_exec) { fwd_exec->update(*fwd); }
-	void buildBackwardGraphExec (device::graphExec *&back_exec) { back_exec->update(*back); }
-	void buildDescentGraphExec (device::graphExec *&desc_exec) { desc_exec->update(*desc); }
+			([this] (device::graph *&desc) { buildForwardGraph(desc); });
 
 	lazy <device::graphExec> fwd_exec = lazy <device::graphExec>
-			(std::bind(&multiLayerPerceptron::buildForwardGraphExec, this, std::placeholders::_1));
+			([this] (device::graphExec *&fwd_exec) { fwd_exec->update(*fwd); });
 	lazy <device::graphExec> back_exec = lazy <device::graphExec>
-			(std::bind(&multiLayerPerceptron::buildBackwardGraphExec, this, std::placeholders::_1));
+			([this] (device::graphExec *&back_exec) { back_exec->update(*back); });
 	lazy <device::graphExec> desc_exec = lazy <device::graphExec>
-			(std::bind(&multiLayerPerceptron::buildDescentGraphExec, this, std::placeholders::_1));
+			([this] (device::graphExec *&desc_exec) { desc_exec->update(*desc); });
 
 	std::vector <device::neuronArrayBatched> arrays;
 	device::matrix <float> exp_output;
@@ -76,6 +72,22 @@ public:
 	struct layerParams {
 		size_t size;
 		device::activationFunction act;
+
+		layerParams() = default;
+
+		layerParams (const size_t size, const device::activationFunction act) :
+			size(size),
+			act(act) {}
+
+		layerParams (const layerParams &other) :
+			size(other.size),
+			act(other.act) {}
+		layerParams &operator= (const layerParams &other) {
+			size = other.size;
+			act = other.act;
+			return *this;
+		}
+		~layerParams () = default;
 	};
 
 private:

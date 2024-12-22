@@ -22,7 +22,7 @@ class device::weightedNode : public virtual device::node {
 protected:
 	virtual void buildDescent (device::graph *&desc) = 0;
 	lazy <device::graph> desc = lazy <device::graph>
-			(std::bind(&weightedNode::buildDescent, this, std::placeholders::_1));
+			([this](device::graph *&desc) { buildDescent(desc); });
 
 	float step_size = 0;
 

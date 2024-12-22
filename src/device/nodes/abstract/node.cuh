@@ -16,11 +16,11 @@ class device::node {
 protected:
 	virtual void buildForward (device::graph *&fwd) = 0;
 	lazy <device::graph> fwd = lazy <device::graph>
-			(std::bind(&node::buildForward, this, std::placeholders::_1));
+			([this](device::graph *&fwd) { buildForward(fwd); });
 
 	virtual void buildBackward (device::graph *&back) = 0;
 	lazy <device::graph> back = lazy <device::graph>
-			(std::bind(&node::buildBackward, this, std::placeholders::_1));
+			([this](device::graph *&back) { buildBackward(back); });
 
 public:
 	virtual ~node () = default;

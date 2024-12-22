@@ -12,7 +12,7 @@ void device::linearLayerBatched::buildForward (device::graph *&fwd) {
 
 	cublasSetStream(virtual_handle, stream);
 	// output[out*batch] = trans(mult)[out*(in+1)] * input[(in+1)*batch]
-	cublasSgemm(virtual_handle, CUBLAS_OP_T, CUBLAS_OP_N, out_size, batch_size, in_size + 1,
+	cublasSgemm(virtual_handle, CUBLAS_OP_T, CUBLAS_OP_N, getOutSize(), getBatchSize(), getInSize() + 1,
 	            &const1, mul, mul.pitch, input->val, input->val.pitch,
 	            &const0, output->val, output->val.pitch);
 
@@ -37,13 +37,13 @@ void device::linearLayerBatched::buildBackward (device::graph *&back) {
 
 	cublasSetStream(virtual_handle, stream1);
 	// mult_der[(in+1)*out] += input[(in+1)*batch] * trans(output_der)[batch*out]
-	cublasSgemm(virtual_handle, CUBLAS_OP_N, CUBLAS_OP_T, in_size + 1, out_size, batch_size,
+	cublasSgemm(virtual_handle, CUBLAS_OP_N, CUBLAS_OP_T, getInSize() + 1, getOutSize(), getBatchSize(),
 	            &const1, input->val, input->val.pitch, *output->der, output->der->pitch,
 	            &const1, *mul_der, mul_der->pitch);
 
 	cublasSetStream(virtual_handle, stream2);
 	// input_der[in*batch] = mult[in*out] * output_der[out*batch]
-	cublasSgemm(virtual_handle, CUBLAS_OP_N, CUBLAS_OP_N, in_size, batch_size, out_size, &const1,
+	cublasSgemm(virtual_handle, CUBLAS_OP_N, CUBLAS_OP_N, getInSize(), getBatchSize(), getOutSize(), &const1,
 	            mul, mul.pitch, *output->der, output->der->pitch,
 	            &const0, *input->der, input->der->pitch);
 
@@ -69,7 +69,7 @@ void device::linearLayerBatched::buildDescent (device::graph *&desc) {
 
 	cublasSetStream(virtual_handle, stream);
 	// mult[(in+1)*out] = mult[(in+1)*out] + step_size * mult_der_sum[(in+1)*out]
-	cublasSgeam(virtual_handle, CUBLAS_OP_N, CUBLAS_OP_N, in_size + 1, out_size,
+	cublasSgeam(virtual_handle, CUBLAS_OP_N, CUBLAS_OP_N, getInSize() + 1, getOutSize(),
 	            &const1, mul, mul.pitch,
 	            &step_size, *mul_der, mul_der->pitch, mul, mul.pitch);
 	mul_der->set(0x00, stream);
@@ -83,19 +83,19 @@ void device::linearLayerBatched::resetWeights (const float mean, const float std
 	curandGenerator_t eng;
 	curandCreateGenerator(&eng, CURAND_RNG_PSEUDO_DEFAULT);
 	curandSetPseudoRandomGeneratorSeed(eng, seed);
-	curandGenerateNormal(eng, mul, batch_size * mul.pitch, mean, std_dev);
+	curandGenerateNormal(eng, mul, getBatchSize() * mul.pitch, mean, std_dev);
 	curandDestroyGenerator(eng);
 	mul_der->set(0x00);
 }
 
 void device::linearLayerBatched::loadWeights (const std::vector <float> &weights) {
-	assert(weights.size() == (in_size + 1) * out_size);
+	assert(weights.size() == (getInSize() + 1) * getOutSize());
 	mul = weights.data();
 	mul_der->set(0x00);
 }
 
-inline std::vector <float> device::linearLayerBatched::saveWeights () const {
-	std::vector <float> ans((in_size + 1) * out_size);
+std::vector <float> device::linearLayerBatched::saveWeights () const {
+	std::vector <float> ans((getInSize() + 1) * getOutSize());
 	mul.toHost(ans.data());
 	return ans;
 }

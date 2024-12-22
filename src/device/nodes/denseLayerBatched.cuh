@@ -3,7 +3,7 @@
 #include "activateLayerBatched.cuh"
 #include "linearLayerBatched.cuh"
 #include "abstract/weightedNodeBatched.cuh"
-#include "activations/all.cuh"
+#include "activations/common.cuh"
 
 namespace device {
 	class denseLayerBatched;
@@ -12,9 +12,6 @@ namespace device {
 class device::denseLayerBatched : public device::IONodeBatched <device::neuronArrayBatched> {
 	device::linearLayerBatched mul;
 	device::activateLayerBatched act;
-
-public:
-	const size_t &in_size, out_size, batch_size;
 
 private:
 	void buildForward (device::graph *&fwd) override;
@@ -26,13 +23,24 @@ public:
 	                   const device::activationFunction &act) :
 		IONodeBatched(input, output),
 		mul(input, output),
-		act(output, act),
-		in_size(mul.in_size),
-		out_size(mul.out_size),
-		batch_size(mul.batch_size) {}
+		act(output, act) {}
 
-	void changeInput (device::neuronArrayBatched &input) override;
-	void changeOutput (device::neuronArrayBatched &output) override;
+	denseLayerBatched (const denseLayerBatched &other) = delete;
+	denseLayerBatched &operator= (const denseLayerBatched &other) = delete;
+	denseLayerBatched (denseLayerBatched &&other) noexcept :
+		IONodeBatched(std::move(other)),
+		mul(std::move(other.mul)),
+		act(std::move(other.act)) {}
+	denseLayerBatched &operator= (denseLayerBatched &&rhs) noexcept {
+		if (this != &rhs) return *this;
+		IONodeBatched::operator=(std::move(rhs));
+		mul = std::move(rhs.mul);
+		act = std::move(rhs.act);
+		return *this;
+	}
+
+	void changeInput (device::neuronArrayBatched &input);
+	void changeOutput (device::neuronArrayBatched &output);
 
 	void changeStepSize (const float new_step_size) override;
 
@@ -42,7 +50,5 @@ public:
 	void loadWeights (const std::vector <float> &weights) override { mul.loadWeights(weights); }
 	[[nodiscard]] std::vector <float> saveWeights () const override { return mul.saveWeights(); }
 
-	[[nodiscard]] device::activationType getType () const {
-		return device::getActType(act.act);
-	}
+	[[nodiscard]] device::activationType getType () const { return device::getActType(act.act); }
 };

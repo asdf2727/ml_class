@@ -14,6 +14,8 @@ struct device::activationFunction {
 	float (*fwdFunc) (const float val);
 	float (*backFunc) (const float act);
 
+	activationFunction() : fwdFunc(nullptr), backFunc(nullptr) {}
+
 	activationFunction (float (*fwdFunc) (const float val), float (*backFunc) (const float act)) :
 		fwdFunc(fwdFunc),
 		backFunc(backFunc) {}
@@ -34,8 +36,24 @@ public:
 
 	explicit activateLayerBatched (device::neuronArrayBatched &data,
 	                               const activationFunction &act) :
+		nodeBatched(data.getBatchSize()),
 		data(data),
 		act(act) {}
+
+	activateLayerBatched (const activateLayerBatched &other) = delete;
+	activateLayerBatched &operator= (const activateLayerBatched &other) = delete;
+	activateLayerBatched (activateLayerBatched &&other) noexcept :
+		nodeBatched(std::move(other)),
+		data(std::move(other.data)),
+		act(std::move(other.act)) {}
+	activateLayerBatched &operator= (activateLayerBatched &&other) noexcept {
+		if (this == &other) return *this;
+		nodeBatched::operator=(std::move(other));
+		data = std::move(other.data);
+		(activationFunction &)act = std::move(other.act);
+		return *this;
+	}
+	~activateLayerBatched () override = default;
 
 	void changeData (device::neuronArrayBatched &new_data);
 };

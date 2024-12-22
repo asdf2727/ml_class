@@ -17,21 +17,26 @@ private:
 public:
 	explicit array (const size_t N) : N(N) { cudaTry(cudaMalloc(&mem, sizeof(T) * N)); }
 
-	array() : N(0), mem(nullptr) {}
+	array () : N(0), mem(nullptr) {}
 
 	void copy (const device::array <T> &arr, const cudaStream_t stream = cudaStreamLegacy);
 
-	array (const device::array <T> &other) : array(other.N) { copy(other); }
+	array (const device::array <T> &other) :
+		array(other.N) { copy(other); }
 	device::array <T> &operator= (const device::array <T> &rhs) {
+		if (this == &rhs) return *this;
 		copy(rhs);
 		return *this;
 	}
-	array (device::array <T> &&other) noexcept : N(other.N), mem(other.mem) { other.mem = nullptr; }
-	device::array <T> &operator= (device::array <T> &&other) noexcept {
-		assert(N == other.N);
-		~array();
-		mem = other.mem;
-		other.mem = nullptr;
+	array (device::array <T> &&other) noexcept :
+		N(other.N),
+		mem(other.mem) { other.mem = nullptr; }
+	device::array <T> &operator= (device::array <T> &&rhs) noexcept {
+		if (this == &rhs) return *this;
+		cudaTry(cudaFree(mem));
+		mem = rhs.mem;
+		(size_t &)N = rhs.N;
+		rhs.mem = nullptr;
 		return *this;
 	}
 	~array () { cudaTry(cudaFree(mem)); }

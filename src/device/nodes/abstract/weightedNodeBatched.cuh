@@ -18,4 +18,18 @@ namespace device {
  */
 
 class device::weightedNodeBatched : public virtual device::weightedNode, public virtual device::nodeBatched {
+public:
+	explicit weightedNodeBatched (const size_t max_batch_size) :
+		nodeBatched(max_batch_size) {}
+
+	weightedNodeBatched (const weightedNodeBatched &other) = delete;
+	weightedNodeBatched &operator= (const weightedNodeBatched &other) = delete;
+	weightedNodeBatched (weightedNodeBatched &&other) noexcept :
+		nodeBatched(std::move (other)) {}
+	weightedNodeBatched &operator= (weightedNodeBatched &&other) noexcept {
+		if (this == &other) return *this;
+		nodeBatched::operator=(std::move (other));
+		return *this;
+	}
+	~weightedNodeBatched() override = default;
 };

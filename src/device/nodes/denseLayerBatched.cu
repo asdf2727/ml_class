@@ -21,10 +21,8 @@ void device::denseLayerBatched::buildBackward (device::graph *&back) {
 
 void device::denseLayerBatched::changeInput (device::neuronArrayBatched &input) {
 	mul.changeInput(input);
-	IONodeBatched::changeInput(input);
 }
 void device::denseLayerBatched::changeOutput (device::neuronArrayBatched &output) {
-	IONodeBatched::changeOutput(output);
 	mul.changeOutput(output);
 	act.changeData(output);
 }
@@ -35,6 +33,6 @@ void device::denseLayerBatched::resetWeights (const float mean, const float std_
 }
 
 void device::denseLayerBatched::changeStepSize (const float new_step_size) {
-	IONodeBatched::changeStepSize(new_step_size);
+	weightedNodeBatched::changeStepSize(new_step_size);
 	mul.changeStepSize(step_size);
 }

@@ -17,6 +17,16 @@ public:
 
 	link (const link &other) = default;
 	link &operator= (const link &other) = default;
+	link (link &&other) noexcept :
+		data(other.data) {
+		other.data = nullptr;
+	}
+	link &operator= (link &&other) noexcept {
+		if (this == &other) return *this;
+		data = other.data;
+		other.data = nullptr;
+		return *this;
+	}
 	~link () = default;
 
 	const T *operator-> () const { return data; }

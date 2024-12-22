@@ -15,6 +15,8 @@ struct device::lossFunction {
 	float (*val) (const float output, const float expected);
 	float (*der) (const float output, const float expected);
 
+	lossFunction () : val(nullptr), der(nullptr) {}
+
 	lossFunction (float (*val) (const float output, const float expected),
 	              float (*der) (const float output, const float expected)) :
 		val(val),
@@ -30,47 +32,39 @@ namespace device {
 }
 
 class device::calculateLossBatched {
-	device::neuronArrayBatched &output = dummy_array_batched; // TODO fix; this is dirty
+	link <device::neuronArrayBatched> output;
 	link <device::matrix <float>> expected;
 
 	void buildGraph (device::graph *&graph);
 	lazy <device::graph> graph = lazy <device::graph>
-			(std::bind(&calculateLossBatched::buildGraph, this, std::placeholders::_1));
+			([this] (device::graph *&graph) { buildGraph(graph); });
 
 public:
-	const lossFunction loss = device::dummy_loss; // TODO fix this as well
+	const lossFunction loss;
 
 	calculateLossBatched (device::neuronArrayBatched &output, device::matrix <float> &expected,
 	                      const device::lossFunction &loss) :
 		output(output),
 		expected(expected),
-		loss(loss) { assert(output.size == expected.X && output.batch_size == expected.Y); }
+		loss(loss) { assert(output.getSize() == expected.X && output.getBatchSize() == expected.Y); }
 
-	calculateLossBatched () = default;
+	calculateLossBatched () :
+		loss(nullptr, nullptr) {}
 
-	calculateLossBatched (const calculateLossBatched &other) :
-		output(other.output),
-		expected(other.expected),
-		loss(other.loss) {}
-	calculateLossBatched &operator= (const calculateLossBatched &other) {
-		if (this == &other) return *this;
-		output = other.output;
-		expected = other.expected;
-		(lossFunction &)loss = other.loss;
-		return *this;
-	}
+	calculateLossBatched (const calculateLossBatched &other) = delete;
+	calculateLossBatched &operator= (const calculateLossBatched &other) = delete;
 	calculateLossBatched (calculateLossBatched &&other) noexcept :
-		output(other.output),
+		output(std::move(other.output)),
 		expected(std::move(other.expected)),
-		loss(other.loss) {}
+		loss(std::move(other.loss)) {}
 	calculateLossBatched &operator= (calculateLossBatched &&other) noexcept {
 		if (this == &other) return *this;
-		output = other.output;
+		output = std::move(other.output);
 		expected = std::move(other.expected);
-		(lossFunction &)loss = other.loss;
+		(lossFunction&)loss = std::move(other.loss);
 		return *this;
 	}
-	~calculateLossBatched() = default;
+	~calculateLossBatched () = default;
 
 	void changeExpected (device::matrix <float> &new_expected);
 

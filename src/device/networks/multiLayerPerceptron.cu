@@ -1,31 +1,31 @@
 #include "multiLayerPerceptron.cuh"
 
 #include "../../binaryIO.cuh"
-#include "../nodes/activations/all.cuh"
-#include "../nodes/losses/all.cuh"
+#include "../nodes/activations/common.cuh"
+#include "../nodes/losses/common.cuh"
 
 // Private functions
 
-inline cudaGraphNode_t putInGraph (device::graph &graph, const device::graph &subgraph) {
+cudaGraphNode_t putInGraph (device::graph &graph, const device::graph &subgraph) {
 	cudaGraphNode_t node;
 	cudaGraphAddChildGraphNode(&node, graph, nullptr, 0, subgraph);
 	return node;
 }
-inline void appendToGraph (cudaGraphNode_t &last, device::graph &graph,
+void appendToGraph (cudaGraphNode_t &last, device::graph &graph,
                            const device::graph &subgraph) {
 	cudaGraphNode_t node;
 	cudaGraphAddChildGraphNode(&node, graph, &last, last == nullptr ? 1 : 0, subgraph);
 	last = node;
 }
 
-inline void device::multiLayerPerceptron::buildForwardGraph (device::graph *&fwd) {
+void device::multiLayerPerceptron::buildForwardGraph (device::graph *&fwd) {
 	cudaGraphCreate((cudaGraph_t*)fwd, 0);
 	cudaGraphNode_t last_node = nullptr;
 	for (device::denseLayerBatched &layer : layers) {
 		appendToGraph(last_node, *fwd, layer.getForward());
 	}
 }
-inline void device::multiLayerPerceptron::buildBackwardGraph (device::graph *&back) {
+void device::multiLayerPerceptron::buildBackwardGraph (device::graph *&back) {
 	cudaGraphCreate((cudaGraph_t*)back, 0);
 	cudaGraphNode_t last_node = nullptr;
 	for (device::denseLayerBatched &layer : layers) {
@@ -36,11 +36,9 @@ inline void device::multiLayerPerceptron::buildBackwardGraph (device::graph *&ba
 		appendToGraph(last_node, *back, layers[i].getBackward());
 	}
 }
-inline void device::multiLayerPerceptron::buildDescentGraph (device::graph *&desc) {
+void device::multiLayerPerceptron::buildDescentGraph (device::graph *&desc) {
 	cudaGraphCreate((cudaGraph_t*)desc, 0);
-	for (device::denseLayerBatched &layer : layers) {
-		putInGraph(*back, layer.getDescent());
-	}
+	for (device::denseLayerBatched &layer : layers) { putInGraph(*back, layer.getDescent()); }
 }
 
 void device::multiLayerPerceptron::switchInBuffer () {
@@ -70,9 +68,7 @@ void device::multiLayerPerceptron::switchExpectBuffer () {
 
 void device::multiLayerPerceptron::updateBatchSize () {
 	if (batch_cnt != exec_batch_size) {
-		for (device::denseLayerBatched &layer : layers) {
-			layer.resizeBatch(batch_cnt);
-		}
+		for (device::denseLayerBatched &layer : layers) { layer.resizeBatch(batch_cnt); }
 		fwd.invalidate();
 		back.invalidate();
 		fwd_exec.invalidate();
@@ -85,9 +81,7 @@ void device::multiLayerPerceptron::updateStepSize () {
 	// TODO normalise with batch_sum when adding gradients to matrix with cublas to avoid precision loss
 	const float next_step_size = fake_step_size / (float)batch_sum;
 	if (std::abs(next_step_size - exec_step_size) > 1e-6) {
-		for (device::denseLayerBatched &layer : layers) {
-			layer.changeStepSize(next_step_size);
-		}
+		for (device::denseLayerBatched &layer : layers) { layer.changeStepSize(next_step_size); }
 		desc.invalidate();
 		desc_exec.invalidate();
 		exec_step_size = next_step_size;
@@ -114,9 +108,9 @@ void device::multiLayerPerceptron::run () {
 	for (size_t i = 0; i < old_batch_size; i++) {
 		out_queue.emplace(out_buffer.X);
 		cudaMemcpy(out_queue.back().data(),
-		           out_buffer + out_buffer.pitch * i,
-		           sizeof(float) * out_buffer.X,
-		           cudaMemcpyDeviceToHost);
+			out_buffer + out_buffer.pitch * i,
+			sizeof(float) * out_buffer.X,
+			cudaMemcpyDeviceToHost);
 	}
 }
 void device::multiLayerPerceptron::train () {
@@ -143,23 +137,24 @@ void device::multiLayerPerceptron::descend () {
 }
 
 void device::multiLayerPerceptron::init (const std::vector <layerParams> &params,
-                                         const lossFunction &loss) {
-	assert(getActType(params.front().act) == device::ACT_NONE);
-	exp_output = device::matrix <float> (params.back().size, max_batch_size);
+                                         const device::lossFunction &loss) {
+	exp_output = device::matrix <float>(params.back().size, max_batch_size);
 	in_buffer = device::neuronArrayBatched(params.front().size, max_batch_size);
-	out_buffer = device::matrix <float> (params.back().size, max_batch_size);
+	out_buffer = device::matrix <float>(params.back().size, max_batch_size);
 	exec_batch_size = max_batch_size;
 	batch_cnt = 0;
 	exec_step_size = fake_step_size;
 	batch_sum = 0;
 	cudaStreamCreate(&stream);
 
-	arrays.emplace_back(params.front().size, max_batch_size);
-	for (size_t i = 1; i < params.size() - 1; i++) {
-		arrays.emplace_back(params[i].size, max_batch_size);
+	for (const auto & param : params) {
+		arrays.emplace_back(param.size, max_batch_size);
+	}
+	assert(getActType(params.front().act) == device::ACT_NONE);
+	for (size_t i = 1; i < params.size(); i++) {
 		layers.emplace_back(arrays[i - 1], arrays[i], params[i].act);
 	}
-	(calculateLossBatched &)loss = calculateLossBatched(arrays.back(), exp_output, loss);
+	(calculateLossBatched&)loss = calculateLossBatched(arrays.back(), exp_output, loss);
 }
 
 // TODO add more safeguards to avoid reding wrong file type
@@ -171,12 +166,13 @@ void device::multiLayerPerceptron::readMetadata (std::istream &in) {
 	const size_t metadata_end = metadata_size + 8;
 
 	const size_t version = read <size_t>(in);
-	assert(0 <= version);
+	//assert(0 <= version);
 
-	(size_t &)max_batch_size = read <size_t>(in);
+	(size_t&)max_batch_size = read <size_t>(in);
 
 	const size_t array_cnt = read <size_t>(in);
-	std::vector <layerParams> params(array_cnt);
+	std::vector <layerParams> params;
+	params.resize(array_cnt);
 	params[0].act = linear;
 	params[0].size = read <size_t>(in);
 	for (size_t i = 1; i < array_cnt; i++) {
@@ -196,16 +192,16 @@ bool device::multiLayerPerceptron::checkMetadata (std::istream &in) const {
 	const size_t metadata_size = read <size_t>(in);
 	const size_t metadata_end = metadata_size + 8;
 
-	if (0 > read <size_t>(in)) return false;
+	//if (0 > read <size_t>(in)) return false;
 	if (read <size_t>(in) != max_batch_size) return false;
 
 	const size_t array_cnt = read <size_t>(in);
 	if (array_cnt != arrays.size()) return false;
 	for (size_t i = 1; i < array_cnt - 1; i++) {
-		if (read <size_t>(in) != arrays[i].size) return false;
+		if (read <size_t>(in) != arrays[i].getSize()) return false;
 		if (read <activationType>(in) != layers[i].getType()) return false;
 	}
-	if (read <size_t>(in) != arrays.back().size) return false;
+	if (read <size_t>(in) != arrays.back().getSize()) return false;
 	if (read <lossType>(in) != getLossType(loss.loss)) return false;
 
 	assert(in.tellg() <= metadata_end);
@@ -214,38 +210,36 @@ bool device::multiLayerPerceptron::checkMetadata (std::istream &in) const {
 	return true;
 }
 void device::multiLayerPerceptron::readWeights (std::istream &in) {
-	for (device::denseLayerBatched &layer : layers) {
-		layer.readWeights(in);
-	}
+	for (device::denseLayerBatched &layer : layers) { layer.readWeights(in); }
 }
 
 
 // Public functions
 
-inline void device::multiLayerPerceptron::bufferRun (const std::vector <float> &input) {
+void device::multiLayerPerceptron::bufferRun (const std::vector <float> &input) {
 	if (batch_cnt == max_batch_size) { run(); }
 	cudaMemcpy(in_buffer.val + in_buffer.val.pitch * batch_cnt,
-	           input.data(),
-	           input.size() * sizeof(float),
-	           cudaMemcpyHostToDevice);
+		input.data(),
+		input.size() * sizeof(float),
+		cudaMemcpyHostToDevice);
 	batch_cnt++;
 }
-inline void device::multiLayerPerceptron::bufferTrain (const std::vector <float> &input,
+void device::multiLayerPerceptron::bufferTrain (const std::vector <float> &input,
                                                        const std::vector <float> &exp_output) {
 	if (batch_cnt == max_batch_size) { train(); }
 	cudaMemcpy(in_buffer.val + in_buffer.val.pitch * batch_cnt,
-	           input.data(),
-	           input.size() * sizeof(float),
-	           cudaMemcpyHostToDevice);
+		input.data(),
+		input.size() * sizeof(float),
+		cudaMemcpyHostToDevice);
 	cudaMemcpy(out_buffer + out_buffer.pitch * batch_cnt,
-	           exp_output.data(),
-	           exp_output.size() * sizeof(float),
-	           cudaMemcpyHostToDevice);
+		exp_output.data(),
+		exp_output.size() * sizeof(float),
+		cudaMemcpyHostToDevice);
 	batch_cnt++;
 }
-inline void device::multiLayerPerceptron::bufferDescent () { descend(); }
+void device::multiLayerPerceptron::bufferDescent () { descend(); }
 
-inline std::vector <float> device::multiLayerPerceptron::getOutput () {
+std::vector <float> device::multiLayerPerceptron::getOutput () {
 	if (out_queue.empty()) {
 		run();
 		if (out_queue.empty()) { cudaStreamSynchronize(stream); }
@@ -256,9 +250,7 @@ inline std::vector <float> device::multiLayerPerceptron::getOutput () {
 }
 
 void device::multiLayerPerceptron::reset (const unsigned long long seed) {
-	for (device::denseLayerBatched &layer : layers) {
-		layer.resetWeights(0, 1, seed);
-	}
+	for (device::denseLayerBatched &layer : layers) { layer.resetWeights(0, 1, seed); }
 }
 bool device::multiLayerPerceptron::load (std::istream &in) {
 	if (!checkMetadata(in)) return false;
@@ -266,7 +258,5 @@ bool device::multiLayerPerceptron::load (std::istream &in) {
 	return true;
 }
 void device::multiLayerPerceptron::save (std::ostream &out) const {
-	for (const device::denseLayerBatched &layer : layers) {
-		layer.writeWeights(out);
-	}
+	for (const device::denseLayerBatched &layer : layers) { layer.writeWeights(out); }
 }

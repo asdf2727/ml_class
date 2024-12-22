@@ -15,5 +15,5 @@ T read(std::istream &in, const size_t size = sizeof(T)) {
 
 template <typename T>
 void write(std::ostream &out, const T *val, const size_t count = 1) {
-	out.write(reinterpret_cast<char *>(val), sizeof(T) * count);
+	out.write(reinterpret_cast<const char *>(val), sizeof(T) * count);
 }

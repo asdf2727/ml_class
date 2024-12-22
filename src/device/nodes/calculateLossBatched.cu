@@ -20,10 +20,10 @@ void device::calculateLossBatched::buildGraph (device::graph *&graph) {
 	cudaStreamBeginCapture(stream, cudaStreamCaptureModeThreadLocal);
 
 	dim3 blockDim(16, 16);
-	dim3 gridDim(calcBlocks(output.size, blockDim.x), calcBlocks(output.batch_size, blockDim.y));
-	devCalculateLoss<<<gridDim, blockDim, 0, stream>>>(output.size, output.batch_size,
-													   output.val, output.val.pitch,
-													   *output.der, output.der->pitch,
+	dim3 gridDim(calcBlocks(output->getSize(), blockDim.x), calcBlocks(output->getBatchSize(), blockDim.y));
+	devCalculateLoss<<<gridDim, blockDim, 0, stream>>>(output->getSize(), output->getBatchSize(),
+													   output->val, output->val.pitch,
+													   *output->der, output->der->pitch,
 													   *expected, expected->pitch, loss);
 
 	cudaStreamEndCapture(stream, (cudaGraph_t*)graph);

@@ -26,16 +26,41 @@ protected:
 	link <array_t> output;
 
 public:
-	IONodeBatched(array_t &input, array_t &output) : input(input), output(output) {
-		assert(this->input->batch_size == this->output->batch_size);
-	}
+	IONodeBatched (array_t &input, array_t &output) :
+		weightedNodeBatched(input.getBatchSize()),
+		input(input),
+		output(output) { assert(this->input->getBatchSize() == this->output->getBatchSize()); }
 
-	virtual void changeInput(array_t &input) {
+	IONodeBatched (const IONodeBatched &other) = delete;
+	IONodeBatched &operator= (const IONodeBatched &other) = delete;
+	IONodeBatched (IONodeBatched &&other) noexcept :
+		weightedNodeBatched(std::move(other)),
+		input(std::move(other.input)),
+		output(std::move(other.output)) {}
+	IONodeBatched &operator= (IONodeBatched &&rhs) noexcept {
+		if (this == &rhs) return *this;
+		weightedNodeBatched::operator=(std::move(rhs));
+		input = std::move(rhs.input);
+		output = std::move(rhs.output);
+		fwd = std::move(rhs.fwd);
+		back = std::move(rhs.back);
+		return *this;
+	}
+	~IONodeBatched () override = default;
+
+	size_t getInSize() const { return input->getSize(); }
+	size_t getOutSize() const { return output->getSize(); }
+
+	virtual void changeInput (array_t &input) {
+		assert(getBatchSize() == input.getBatchSize());
+		assert(getInSize() == input.getSize());
 		this->input = input;
 		fwd.invalidate();
 		back.invalidate();
 	}
-	virtual void changeOutput(array_t &output) {
+	virtual void changeOutput (array_t &output) {
+		assert(getBatchSize() == output.getBatchSize());
+		assert(getOutSize() == output.getSize());
 		this->output = output;
 		fwd.invalidate();
 		back.invalidate();

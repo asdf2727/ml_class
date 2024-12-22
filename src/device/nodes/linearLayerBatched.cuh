@@ -9,20 +9,16 @@ namespace device {
 }
 
 class device::linearLayerBatched : public device::IONodeBatched <device::neuronArrayBatched> {
-public:
-	const size_t &in_size, out_size, batch_size;
-
-private:
 	static constexpr float const1 = 1.0, const0 = 0.0;
 
 	device::matrix <float> mul;
 
-	void buildMultDer (device::matrix <float> *&mul_der) {
-		mul_der = new device::matrix <float>(in_size + 1, out_size);
-		mul_der->set(0x00);
-	}
 	lazy <device::matrix <float>> mul_der = lazy <device::matrix <float>>
-			(std::bind(&linearLayerBatched::buildMultDer, this, std::placeholders::_1));
+	([this] (device::matrix <float> *&mul_der) {
+		device::matrix <float> *temp = new device::matrix <float>(getInSize() + 1, getOutSize());
+		mul_der = temp;
+		mul_der->set(0x00);
+	});
 
 	void buildForward (device::graph *&fwd) override;
 	void buildBackward (device::graph *&back) override;
@@ -31,10 +27,20 @@ private:
 public:
 	linearLayerBatched (device::neuronArrayBatched &input, device::neuronArrayBatched &output) :
 		IONodeBatched(input, output),
-		in_size(this->input->size),
-		out_size(this->output->size),
-		batch_size(this->input->batch_size),
-		mul(in_size, out_size) {}
+		mul(input.getSize() + 1, output.getSize()) {}
+
+	linearLayerBatched (const device::linearLayerBatched &other) = delete;
+	device::linearLayerBatched &operator= (const device::linearLayerBatched &rhs) = delete;
+	linearLayerBatched (device::linearLayerBatched &&other) noexcept :
+		IONodeBatched(std::move(other)),
+		mul(std::move(other.mul)) {}
+	device::linearLayerBatched &operator= (device::linearLayerBatched &&rhs) noexcept {
+		if (this == &rhs) return *this;
+		IONodeBatched::operator=(std::move(rhs));
+		mul = std::move(rhs.mul);
+		return *this;
+	}
+	~linearLayerBatched () override = default;
 
 	void resetWeights (const float mean, const float std_dev,
 	                   const unsigned long long seed) override;
