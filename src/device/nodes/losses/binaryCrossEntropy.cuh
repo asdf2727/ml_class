@@ -9,5 +9,5 @@ __device__ inline float BCEDer(const float output, const float expected) {
 	return (output - expected) / (output * (1 - output));
 }
 namespace device {
-	constexpr lossFunction BCE(BCEFunc, BCEDer);
-};
+	const lossFunction BCE(BCEFunc, BCEDer);
+}

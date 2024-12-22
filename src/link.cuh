@@ -1,28 +1,28 @@
 #pragma once
 
+// TODO
 template <typename T>
 struct link {
 private:
 	T *data;
 
 public:
-	link (T &val) { data = *val; }
-	T &operator=(T &val) { return *data = val; }
-
-	friend ::operator T *(link *rhs) {
-		return rhs.data;
+	explicit link (T &val) : data(&val) {}
+	link &operator= (T &val) {
+		data = &val;
+		return *this;
 	}
 
-	T &get() {
-		return *data;
-	}
-	operator T &() {
-		return get();
-	}
-	const T &get() const {
-		return *data;
-	}
-	operator const T &() const {
-		return get();
-	}
+	link() : data(nullptr) {}
+
+	link (const link &other) = default;
+	link &operator= (const link &other) = default;
+	~link () = default;
+
+	const T *operator-> () const { return data; }
+	T *operator-> () noexcept { return data; }
+	const T &operator* () const & { return *data; }
+	T &operator* () & { return *data; }
+	const T &&operator* () const && { return std::move(*data); }
+	T &&operator* () && { return std::move(*data); }
 };

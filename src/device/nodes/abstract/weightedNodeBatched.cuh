@@ -5,7 +5,7 @@
 
 namespace device {
 	class weightedNodeBatched;
-};
+}
 
 /* Implement:
  * void makeForwardGraph();

@@ -6,7 +6,7 @@
 namespace device {
 	template <typename array_t>
 	class IONodeBatched;
-};
+}
 
 /* Implement:
  * void makeForwardGraph();
@@ -27,16 +27,16 @@ protected:
 
 public:
 	IONodeBatched(array_t &input, array_t &output) : input(input), output(output) {
-		assert(this->input.get().batch_size == this->output.get().batch_size);
+		assert(this->input->batch_size == this->output->batch_size);
 	}
 
 	virtual void changeInput(array_t &input) {
-		this.input = input;
+		this->input = input;
 		fwd.invalidate();
 		back.invalidate();
 	}
 	virtual void changeOutput(array_t &output) {
-		this.output = output;
+		this->output = output;
 		fwd.invalidate();
 		back.invalidate();
 	}

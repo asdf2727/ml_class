@@ -5,27 +5,39 @@
 
 #include "../neurons/neuronArrayBatched.cuh"
 #include "../nodes/calculateLossBatched.cuh"
-#include "../nodes/activations/sigmoid.cuh"
 #include "../nodes/denseLayerBatched.cuh"
+#include "../wrappers/graphExec.cuh"
 
 namespace device {
-	class multiLayerPerceptronBuilder;
 	class multiLayerPerceptron;
-};
+}
 
-// TODO update build fwd/back and fwd/back using lazy
 class device::multiLayerPerceptron {
-	std::vector <device::IONodeBatched <device::neuronArrayBatched>*> layers;
-	device::calculateLossBatched &loss;
+	std::vector <device::denseLayerBatched> layers;
 
-	cudaGraph_t build_fwd = nullptr, build_back = nullptr;
-	bool updateForwardBuildGraph ();
-	bool updateBackwardBuildGraph ();
-	void invalidateBuildGraphs ();
+	device::calculateLossBatched loss;
 
-	cudaGraphExec_t fwd = nullptr, back = nullptr;
-	void updateForwardGraphExec ();
-	void updateBackwardGraphExec ();
+	void buildForwardGraph (device::graph *&fwd);
+	void buildBackwardGraph (device::graph *&back);
+	void buildDescentGraph (device::graph *&desc);
+
+	lazy <device::graph> fwd = lazy <device::graph>
+			(std::bind(&multiLayerPerceptron::buildForwardGraph, this, std::placeholders::_1));
+	lazy <device::graph> back = lazy <device::graph>
+			(std::bind(&multiLayerPerceptron::buildBackwardGraph, this, std::placeholders::_1));
+	lazy <device::graph> desc = lazy <device::graph>
+			(std::bind(&multiLayerPerceptron::buildDescentGraph, this, std::placeholders::_1));
+
+	void buildForwardGraphExec (device::graphExec *&fwd_exec) { fwd_exec->update(*fwd); }
+	void buildBackwardGraphExec (device::graphExec *&back_exec) { back_exec->update(*back); }
+	void buildDescentGraphExec (device::graphExec *&desc_exec) { desc_exec->update(*desc); }
+
+	lazy <device::graphExec> fwd_exec = lazy <device::graphExec>
+			(std::bind(&multiLayerPerceptron::buildForwardGraphExec, this, std::placeholders::_1));
+	lazy <device::graphExec> back_exec = lazy <device::graphExec>
+			(std::bind(&multiLayerPerceptron::buildBackwardGraphExec, this, std::placeholders::_1));
+	lazy <device::graphExec> desc_exec = lazy <device::graphExec>
+			(std::bind(&multiLayerPerceptron::buildDescentGraphExec, this, std::placeholders::_1));
 
 	std::vector <device::neuronArrayBatched> arrays;
 	device::matrix <float> exp_output;
@@ -35,221 +47,70 @@ class device::multiLayerPerceptron {
 
 	void switchInBuffer ();
 	void switchOutBuffer ();
-	void switchTrainBuffer ();
+	void switchExpectBuffer ();
 
 	const size_t max_batch_size;
 	size_t exec_batch_size;
-	size_t batch_cnt = 0;
+	size_t batch_cnt;
 
 	void updateBatchSize ();
 
+	float fake_step_size;
+	float exec_step_size;
+	size_t batch_sum;
+
+	void updateStepSize ();
+
 	cudaStream_t stream;
-	bool train_mode = false;
 
 	void run ();
 	void train ();
+	void descend ();
+
+	size_t gen_count;
+	size_t train_count;
 
 	std::queue <std::vector <float>> out_queue;
 
 public:
-	multiLayerPerceptron (const std::vector <size_t> &sizes,
-	                      const std::vector <device::activationFunction*> &activations,
-	                      const device::lossFunction &loss,
-	                      const size_t batch_size) : exp_output(sizes.back(), batch_size),
-	                                                 in_buffer(sizes.front(), batch_size),
-	                                                 out_buffer(sizes.back(), batch_size),
-	                                                 max_batch_size(batch_size) {
-		arrays.emplace_back(sizes[0], max_batch_size);
-		for (size_t i = 1; i < sizes.size() - 1; i++) {
-			arrays.emplace_back(sizes[i], max_batch_size);
-			layers.push_back(activations[i] == nullptr ?
-				                 new device::denseLayerBatched(arrays[i - 1], arrays[i], *activations[i]) :
-				                 new device::linearLayerBatched(arrays[i - 1], arrays[i]));
-		}
-		this->loss = device::calculateLossBatched(arrays.back(), exp_output, loss);
+	struct layerParams {
+		size_t size;
+		device::activationFunction act;
+	};
 
+private:
+	void init (const std::vector <layerParams> &params,
+	           const device::lossFunction &loss);
 
-				cudaStreamCreate(&stream);
-		exec_batch_size = max_batch_size;
+	void readMetadata (std::istream &in);
+	bool checkMetadata (std::istream &in) const;
+	void readWeights (std::istream &in);
+
+public:
+	multiLayerPerceptron (const std::vector <layerParams> &params,
+	                      const device::lossFunction &loss, const size_t batch_size,
+	                      const float step_size = 0) :
+		max_batch_size(batch_size) {
+		setStepSize(step_size);
+		init(params, loss);
+		reset();
+	}
+	explicit multiLayerPerceptron (std::istream &in, const float step_size) :
+		max_batch_size(0) {
+		setStepSize(step_size);
+		readMetadata(in);
+		readWeights(in);
 	}
 
-	~multiLayerPerceptron () {
-		for (const device::weightedNodeBatched *layer : layers) {
-			delete layer;
-		}
-	}
+	void setStepSize (const float step_size) { fake_step_size = step_size; }
 
 	void bufferRun (const std::vector <float> &input);
 	void bufferTrain (const std::vector <float> &input, const std::vector <float> &exp_output);
+	void bufferDescent ();
 
-	std::vector <float> getOutput () {
-		if (out_queue.empty()) {
-			run();
-		}
-		std::vector <float> output = std::move(out_queue.front());
-		out_queue.pop();
-		return output;
-	}
+	void reset (const unsigned long long seed = 0);
+	bool load (std::istream &in);
+	void save (std::ostream &out) const;
+
+	std::vector <float> getOutput ();
 };
-
-bool device::multiLayerPerceptron::updateForwardBuildGraph () {
-	if (build_fwd == nullptr) {
-		return false;
-	}
-	cudaGraphCreate(&build_fwd, 0);
-	cudaGraphNode_t last_node = nullptr, this_node;
-	for (device::weightedNodeBatched *layer : layers) {
-		cudaGraphAddChildGraphNode(&this_node, build_fwd, &last_node, 0, layer->getForwardGraph());
-		last_node = this_node;
-	}
-	return true;
-}
-
-bool device::multiLayerPerceptron::updateBackwardBuildGraph () {
-	if (build_back != nullptr) {
-		return false;
-	}
-	cudaGraphCreate(&build_back, 0);
-	cudaGraphNode_t last_node = nullptr, this_node;
-	for (device::weightedNodeBatched *layer : layers) {
-		cudaGraphAddChildGraphNode(&this_node, build_back, &last_node, 0, layer->getForwardGraph());
-		last_node = this_node;
-	}
-	cudaGraphAddChildGraphNode(&this_node, build_back, &last_node, 0, );
-	last_node = this_node;
-	for (size_t i = layers.size() - 1; i < layers.size(); i--) {
-		cudaGraphAddChildGraphNode(&this_node, build_back, &last_node, 0, layers[i]->getBackwardGraph());
-		last_node = this_node;
-	}
-	return true;
-}
-
-void device::multiLayerPerceptron::invalidateBuildGraphs () {
-	if (build_fwd != nullptr) {
-		cudaGraphDestroy(build_fwd);
-		build_fwd = nullptr;
-	}
-	if (build_back != nullptr) {
-		cudaGraphDestroy(build_back);
-		build_back = nullptr;
-	}
-}
-
-void device::multiLayerPerceptron::updateForwardGraphExec () {
-	if (updateForwardBuildGraph()) {
-		if (!train_mode) {
-			cudaStreamSynchronize(stream);
-		}
-		cudaGraphExecForceUpdate(&fwd, build_fwd);
-	}
-}
-
-void device::multiLayerPerceptron::updateBackwardGraphExec () {
-	if (updateBackwardBuildGraph()) {
-		if (train_mode) {
-			cudaStreamSynchronize(stream);
-		}
-		cudaGraphExecForceUpdate(&back, build_back);
-	}
-}
-
-void device::multiLayerPerceptron::switchInBuffer () {
-	std::swap(in_buffer, arrays.front());
-	layers[0]->changeInput(arrays.front());
-	invalidateBuildGraphs();
-}
-
-void device::multiLayerPerceptron::switchOutBuffer () {
-	std::swap(out_buffer, arrays.back().val);
-	layers[0]->changeInput(arrays.back());
-	invalidateBuildGraphs();
-}
-
-void device::multiLayerPerceptron::switchTrainBuffer () {
-	std::swap(out_buffer, exp_output);
-	// TODO add edit exp_out
-	invalidateBuildGraphs();
-}
-
-void device::multiLayerPerceptron::updateBatchSize () {
-	if (batch_cnt != exec_batch_size) {
-		for (const auto layer : layers) {
-			layer->resizeBatch(batch_cnt);
-		}
-		invalidateBuildGraphs();
-		exec_batch_size = batch_cnt;
-	}
-}
-
-void device::multiLayerPerceptron::run () {
-	const size_t old_batch_size = exec_batch_size;
-	if (batch_cnt == 0) {
-		// skip enqueuing if empty buffer
-		cudaStreamSynchronize(stream);
-		exec_batch_size = 0;
-	}
-	else {
-		// enqueue new run
-		updateBatchSize();
-		updateForwardGraphExec();
-		cudaStreamSynchronize(stream); // wait for the last action to finish
-		cudaGraphLaunch(fwd, stream);  // then start this one
-		switchInBuffer();
-		switchOutBuffer();
-		batch_cnt = 0;
-	}
-	train_mode = false;
-	// get old results from output buffer
-	for (size_t i = 0; i < old_batch_size; i++) {
-		out_queue.emplace(out_buffer.X);
-		cudaMemcpy(out_queue.back().data(),
-		           out_buffer + out_buffer.pitch * i,
-		           sizeof(float) * out_buffer.X,
-		           cudaMemcpyDeviceToHost);
-	}
-}
-
-void device::multiLayerPerceptron::train () {
-	if (batch_cnt == 0) {
-		// skip enqueuing if empty buffer
-		exec_batch_size = 0;
-	}
-	else {
-		// enqueue new run
-		updateBatchSize();
-		updateBackwardGraphExec();
-		cudaStreamSynchronize(stream); // wait for the last action to finish
-		cudaGraphLaunch(back, stream); // then start this one
-		// TODO add descent
-		switchInBuffer();
-		switchTrainBuffer();
-		batch_cnt = 0;
-	}
-	train_mode = true;
-}
-
-inline void device::multiLayerPerceptron::bufferRun (const std::vector <float> &input) {
-	if (batch_cnt == max_batch_size) {
-		run();
-	}
-	cudaMemcpy(in_buffer.val + in_buffer.val.pitch * batch_cnt,
-	           input.data(),
-	           input.size() * sizeof(float),
-	           cudaMemcpyHostToDevice);
-	batch_cnt++;
-}
-
-inline void device::multiLayerPerceptron::bufferTrain (const std::vector <float> &input, const std::vector <float> &exp_output) {
-	if (batch_cnt == max_batch_size) {
-		train();
-	}
-	cudaMemcpy(in_buffer.val + in_buffer.val.pitch * batch_cnt,
-	           input.data(),
-	           input.size() * sizeof(float),
-	           cudaMemcpyHostToDevice);
-	cudaMemcpy(out_buffer + out_buffer.pitch * batch_cnt,
-	           exp_output.data(),
-	           exp_output.size() * sizeof(float),
-	           cudaMemcpyHostToDevice);
-	batch_cnt++;
-}

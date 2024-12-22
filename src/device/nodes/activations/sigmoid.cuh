@@ -9,5 +9,5 @@ __device__ inline float sigmoidDer(const float sigmoid) {
 	return sigmoid * (1 - sigmoid);
 }
 namespace device {
-	constexpr activationFunction sigmoid(sigmoidFunc, sigmoidDer);
-};
+	const activationFunction sigmoid(sigmoidFunc, sigmoidDer);
+}

@@ -8,6 +8,7 @@ __device__ inline float MSEFunc(const float output, const float expected) {
 __device__ inline float MSEDer(const float output, const float expected) {
 	return 2 * (output - expected);
 }
+
 namespace device {
-	constexpr lossFunction MSE(MSEFunc, MSEDer);
-};
+	const lossFunction MSE(MSEFunc, MSEDer);
+}

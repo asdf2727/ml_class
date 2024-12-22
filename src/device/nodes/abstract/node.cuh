@@ -5,7 +5,7 @@
 
 namespace device {
 	class node;
-};
+}
 
 /* Implement:
  * void makeForwardGraph();
@@ -14,17 +14,17 @@ namespace device {
 
 class device::node {
 protected:
-	virtual void buildForward(const device::graph *&fwd) const;
-	lazy <device::graph, device::node> fwd;
+	virtual void buildForward (device::graph *&fwd) = 0;
+	lazy <device::graph> fwd = lazy <device::graph>
+			(std::bind(&node::buildForward, this, std::placeholders::_1));
 
-	virtual void buildBackward(const device::graph *&back) const;
-	lazy <device::graph, device::node> back;
+	virtual void buildBackward (device::graph *&back) = 0;
+	lazy <device::graph> back = lazy <device::graph>
+			(std::bind(&node::buildBackward, this, std::placeholders::_1));
 
 public:
-	node() : fwd(buildForward), back(buildBackward) { }
+	virtual ~node () = default;
 
-	virtual ~node() = default;
-
-	const device::graph &getForward() const { return fwd; }
-	const device::graph &getBackward() const { return back; }
+	device::graph &getForward () { return *fwd; }
+	device::graph &getBackward () { return *back; }
 };

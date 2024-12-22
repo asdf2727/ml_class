@@ -1,43 +1,59 @@
 #pragma once
 
-template <typename T, class C>
-struct lazy {
-private:
+#include <functional>
+
+template <typename T>
+class lazy {
+	bool valid = false;
 	T *data = nullptr;
-	void (C::*build)(const T *&data) const;
+	std::function <void  (T *&)> build;
+
+	T *get () {
+		if (!valid) validate();
+		return data;
+	}
 
 public:
-	explicit lazy(void (C::*build)(const T *&data) const) : build(build) {}
+	explicit lazy (std::function <void  (T *&)> build) : build(std::move(build)) {}
 
-	~lazy() {
-		delete data;
-	}
+	lazy () : data(nullptr), build(nullptr) {}
 
-	friend ::operator T *(lazy *rhs) {
-		return rhs.data;
+	lazy (const lazy &other) = delete;
+	lazy &operator= (const lazy &other) = delete;
+	lazy (lazy &&other) noexcept :
+		valid(other.valid),
+		data(other.data),
+		build(std::move(other.build)) {
+		other.valid = false;
+		other.data = nullptr;
 	}
+	lazy &operator= (lazy &&other) noexcept {
+		valid = other.valid;
+		data = other.data;
+		other.valid = false;
+		other.data = nullptr;
+		return *this;
+	}
+	~lazy () { delete data; }
 
-	T &get() {
-		if (data == nullptr) {
-			build(data);
-		}
-		return *data;
-	}
-	operator T &() {
-		return get();
-	}
-	const T &get() const {
-		if (data == nullptr) {
-			build(data);
-		}
-		return *data;
-	}
-	operator const T &() const {
-		return get();
-	}
+	void validate();
+	void invalidate () { valid = false; }
+	[[nodiscard]] bool isValid () const { return valid; }
 
-	void invalidate() {
-		delete data;
-		data = nullptr;
-	}
+	operator const T* () const { return data; }
+	operator T* () noexcept { return get(); }
+	const T *operator-> () const { return data; }
+	T *operator-> () noexcept { return get(); }
+	const T &operator* () const & { return *data; }
+	T &operator* () & { return *get(); }
+	const T &&operator* () const && { return std::move(*data); }
+	T &&operator* () && { return std::move(*get()); }
 };
+
+template <typename T>
+void lazy <T>::validate() {
+	delete data;
+	data = nullptr;
+	build(data);
+	valid = true;
+}

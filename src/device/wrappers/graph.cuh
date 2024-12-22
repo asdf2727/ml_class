@@ -4,28 +4,18 @@
 
 namespace device {
 	class graph;
-};
+}
 
 class device::graph {
 	cudaGraph_t data;
 
 public:
-	graph() : data(nullptr) {
-		cudaTry(cudaGraphCreate(&data, 0));
-	}
+	graph () : data(nullptr) { cudaTry(cudaGraphCreate(&data, 0)); }
 
-	~graph() {
-		cudaTry(cudaGraphDestroy(data));
-	}
+	~graph () { cudaTry(cudaGraphDestroy(data)); }
 
-	friend ::operator cudaGraph_t *(graph *rhs) {
-		return &rhs->data;
-	}
-
-	operator cudaGraph_t &() {
-		return data;
-	}
-	operator cudaGraph_t () const {
-		return data;
-	}
+	operator cudaGraph_t () const { return data; }
+	operator cudaGraph_t& () { return data; }
+	const cudaGraph_t *operator* () const { return &data; }
+	cudaGraph_t *operator* () { return &data; }
 };

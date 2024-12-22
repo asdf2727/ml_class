@@ -9,5 +9,5 @@ __device__ inline float ReLUDer(const float value) {
 	return value > 0 ? 1 : 0;
 }
 namespace device {
-	constexpr activationFunction sigmoid(ReLUFunc, ReLUDer);
-};
+	const activationFunction ReLU(ReLUFunc, ReLUDer);
+}
